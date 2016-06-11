@@ -34,6 +34,7 @@
 
 #define VENDOR 0x054c
 #define PRODUCT_SIXAXIS 0x0268
+#define PRODUCT_KEYPAD 0x03a0
 #define PRODUCT_NAVIGATION 0x042f
 #define PRODUCT_DS4 0x05c4
 
@@ -42,7 +43,7 @@
 
 void fatal(char *msg) { perror(msg); exit(1); }
 
-void show_master(usb_dev_handle *devh, int itfnum) {
+void show_master_gen(usb_dev_handle *devh, int itfnum) {
   printf("Current Bluetooth master: ");
   unsigned char msg[8];
   int res = usb_control_msg
@@ -53,7 +54,7 @@ void show_master(usb_dev_handle *devh, int itfnum) {
 	 msg[2], msg[3], msg[4], msg[5], msg[6], msg[7]);
 }
 
-void set_master(usb_dev_handle *devh, int itfnum, int mac[6]) {
+void set_master_gen(usb_dev_handle *devh, int itfnum, int mac[6]) {
   printf("Setting master bd_addr to %02x:%02x:%02x:%02x:%02x:%02x\n",
 	 mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
   char msg[8]= { 0x01, 0x00, mac[0],mac[1],mac[2],mac[3],mac[4],mac[5] };
@@ -65,10 +66,56 @@ void set_master(usb_dev_handle *devh, int itfnum, int mac[6]) {
      5000);
   if ( res < 0 ) fatal("USB_REQ_SET_CONFIGURATION");
 }
+void show_master_keypad(usb_dev_handle *devh, int itfnum) {
+    unsigned char msg[16];
+    printf("Current Bluetooth master: ");
 
+
+    int res = usb_control_msg
+              (devh, USB_DIR_IN | USB_TYPE_CLASS | USB_RECIP_INTERFACE,
+               0x01, 0x0304, itfnum, (void*)msg, 16, 5000);
+
+    if ( res < 0 ) {
+        perror("USB_REQ_GET_CONFIGURATION");
+        return;
+    }
+    printf("%02x:%02x:%02x:%02x:%02x:%02x\n",
+           msg[15], msg[14], msg[13], msg[12], msg[11], msg[10]);
+
+    /* msg 6 - 1 is the defice MAC
+     * Suppressed output to maintain same text output as the generic function.
+     * */
+}
+
+void set_master_keypad(usb_dev_handle *devh, int itfnum, int mac[6]) {
+    int res;
+    char msg[7]= { 0x01, mac[5],mac[4],mac[3],mac[2],mac[1],mac[0] };
+
+    res = usb_control_msg
+          (devh,
+           USB_DIR_OUT | USB_TYPE_CLASS | USB_RECIP_INTERFACE,
+           0x09,
+           0x0305, itfnum, msg, sizeof(msg),
+           5000);
+    if ( res < 0 ) fatal("USB_REQ_SET_CONFIGURATION");
+}
 void process_device(int argc, char **argv, struct usb_device *dev,
 		    struct usb_config_descriptor *cfg, int itfnum) {
   int mac[6];
+
+  void (*show_master)(usb_dev_handle*, int);
+  void (*set_master)(usb_dev_handle*, int, int[6]);
+
+  switch (dev->descriptor.idProduct) {
+  case PRODUCT_KEYPAD:
+    show_master = &show_master_keypad;
+    set_master = &set_master_keypad;
+    break;
+  default:
+    show_master = &show_master_gen;
+    set_master = &set_master_gen;
+    break;
+  }
 
   usb_dev_handle *devh = usb_open(dev);
   if ( ! devh ) fatal("usb_open");
@@ -98,7 +145,7 @@ void process_device(int argc, char **argv, struct usb_device *dev,
     }
     pclose(f);
   }
-    
+
   set_master(devh, itfnum, mac);
 
   usb_reset(devh);
@@ -134,7 +181,8 @@ int main(int argc, char *argv[]) {
 	    if ( dev->descriptor.idVendor == VENDOR &&
 		 (dev->descriptor.idProduct == PRODUCT_SIXAXIS ||
 		  dev->descriptor.idProduct == PRODUCT_NAVIGATION ||
-		  dev->descriptor.idProduct == PRODUCT_DS4) &&
+		  dev->descriptor.idProduct == PRODUCT_DS4 ||
+		  dev->descriptor.idProduct == PRODUCT_KEYPAD) &&
 		 alt->bInterfaceClass == 3 ) {
 	      process_device(argc, argv, dev, cfg, itfnum);
 	      ++found;
