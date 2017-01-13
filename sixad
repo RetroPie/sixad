@@ -2,7 +2,7 @@
 
 # sixad-bin wrapper
 # written by falkTX
-# modified by Dark-Show
+# modified by danbishop
 
 DEBUG=0
 LEGACY=0
@@ -13,117 +13,117 @@ trap "exit" SIGHUP SIGINT SIGTERM
 . /etc/default/sixad
 
 bt_device_checkr() {
-if (! hciconfig dev &> /dev/null); then
+  if (! hciconfig dev &> /dev/null); then
     return 0;
-fi
-return 1;
+  fi
+    return 1;
 }
 
 bt_device_check () {
-if (which hciconfig > /dev/null); then
-  while (! hciconfig dev &> /dev/null); do
-    echo "No bluetooth adapters found on the system; will try again in 1 second."
-    sleep 1;
-  done
+  if (which hciconfig > /dev/null); then
+    while (! hciconfig dev &> /dev/null); do
+      echo "No bluetooth adapters found on the system; will try again in 1 second."
+      sleep 1;
+    done
 
-  VER=`hciconfig default version | grep "HCI Ver" | awk '{print$3}'`
-  if [ "$VER" == "1.1" ]; then
-    echo "***** NOTICE *****"
-    echo "You're using a very old bluetooth dongle,"
-    echo "the Sixaxis will not work properly!"
-  elif [ "$VER" == "1.0" ]; then
-    echo "***** WARNING *****"
-    echo "You're using a _really_ old bluetooth dongle,"
-    echo "the Sixaxis will just not work!"
+    VER=`hciconfig default version | grep "HCI Ver" | awk '{print$3}'`
+    if [ "$VER" == "1.1" ]; then
+      echo "***** NOTICE *****"
+      echo "You're using a very old bluetooth dongle,"
+      echo "the Sixaxis will not work properly!"
+    elif [ "$VER" == "1.0" ]; then
+      echo "***** WARNING *****"
+      echo "You're using a _really_ old bluetooth dongle,"
+      echo "the Sixaxis will just not work!"
+    fi
+    bt_device_enable
   fi
-  bt_device_enable
-fi
 }
 
 bt_device_enable () {
-bt_device_up
-bt_device_pscan
+  bt_device_up
+  bt_device_pscan
 }
 
 bt_device_up () {
-hciconfig hci0 up
+  hciconfig hci0 up
 }
 
 bt_device_pscan () {
-hciconfig hci0 pscan
+  hciconfig hci0 pscan
 }
 
 sixad_running_check () {
-ps -e | grep sixad-bin > /dev/null
+  ps -e | grep sixad-bin > /dev/null
 }
 
 bluetoothd_running_check () {
-ps -e | grep bluetoothd > /dev/null
+  ps -e | grep bluetoothd > /dev/null
 }
 
 isroot_check () {
-# check, if sudo is used
-if [[ $(id -u) -ne 0 ]]; then
+  # check, if sudo is used
+  if [[ $(id -u) -ne 0 ]]; then
     echo "Script must be run as root. Try 'sudo $0'"
     exit 1
-fi
+  fi
 }
 
 bt_start () {
-chmod 755 "$BLUETOOTHD"
-if [ -f /lib/udev/rules.d/97-bluetooth-hid2hci.rules ]; then
-  /usr/sbin/bluetoothd --udev
-elif [ -f /etc/rc.d/bluetooth ]; then
-  /etc/rc.d/bluetooth start
-else
-  /etc/init.d/bluetooth start
-fi
+  chmod 755 "$BLUETOOTHD"
+  if [ -f /lib/udev/rules.d/97-bluetooth-hid2hci.rules ]; then
+    /usr/sbin/bluetoothd --udev
+  elif [ -f /etc/rc.d/bluetooth ]; then
+    /etc/rc.d/bluetooth start
+  else
+    /etc/init.d/bluetooth start
+  fi
 }
 
 bt_stop() {
-chmod 644 "$BLUETOOTHD"
-if (bluetoothd_running_check); then
-  pkill -KILL bluetoothd
-fi
+  chmod 644 "$BLUETOOTHD"
+  if (bluetoothd_running_check); then
+    pkill -KILL bluetoothd
+  fi
 }
 
 bt_start_and_stop () {
-bt_start
-env sleep 2
-bt_stop
+  bt_start
+  env sleep 2
+  bt_stop
 }
 
 sixad_watchdog (){
-    echo "Watching... (5s)"
-    while (true); do
-        if (bt_device_checkr); then
-            echo "Watchdog: Bluetooth disconnected, killing sixad."
-            pkill -KILL sixad-sixaxis
-            pkill -KILL sixad-remote
-            pkill -TERM sixad-bin
-            break
-        fi
-        if (hciconfig hci0 | grep "DOWN" &> /dev/null); then
-          echo "Watchdog: hci0 down, re-enabling."
-          bt_device_up
-        fi
-        if ! (hciconfig hci0 | grep "PSCAN" &> /dev/null); then
-          echo "Watchdog: PSCAN not set, resetting."
-          bt_device_pscan
-        fi
-        sleep 5;
-    done
-    sixad_start
+  echo "Watching... (5s)"
+  while (true); do
+    if (bt_device_checkr); then
+      echo "Watchdog: Bluetooth disconnected, killing sixad."
+      pkill -KILL sixad-sixaxis
+      pkill -KILL sixad-remote
+      pkill -TERM sixad-bin
+      break
+    fi
+    if (hciconfig hci0 | grep "DOWN" &> /dev/null); then
+      echo "Watchdog: hci0 down, re-enabling."
+      bt_device_up
+    fi
+    if ! (hciconfig hci0 | grep "PSCAN" &> /dev/null); then
+      echo "Watchdog: PSCAN not set, resetting."
+      bt_device_pscan
+    fi
+    sleep 5;
+  done
+  sixad_start
 }
 
 sixad_start () {
-    bt_device_check
-    bt_start_and_stop
-    env sleep 1
-    /usr/sbin/sixad-bin $DEBUG $LEGACY $REMOTE &
-    env sleep 2
-    bt_device_enable
-    sixad_watchdog
+  bt_device_check
+  bt_start_and_stop
+  env sleep 1
+  /usr/sbin/sixad-bin $DEBUG $LEGACY $REMOTE &
+  env sleep 2
+  bt_device_enable
+  sixad_watchdog
 }
 
 case $1 in
