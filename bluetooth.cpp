@@ -130,6 +130,25 @@ void do_connect(int ctl, bdaddr_t *src, bdaddr_t *dst, int debug)
         }
 }
 
+void get_remote_name(bdaddr_t *bdaddr, char *name, int size) {
+
+     int dev_id, sock;
+
+     dev_id = hci_get_route(NULL);
+     sock = hci_open_dev(dev_id);
+
+     if (dev_id < 0 || sock < 0) {
+         syslog(LOG_ERR, "error opening socket");
+         return;
+     }
+
+     if (hci_read_remote_name(sock, bdaddr, size, name, 0) < 0)
+         strcpy(name, "[unknown]");
+
+     syslog(LOG_INFO, "remote name: %s", name);
+     close(sock);
+}
+
 int l2cap_listen(const bdaddr_t *bdaddr, unsigned short psm, int lm, int backlog)
 {
     struct sockaddr_l2 addr;
@@ -173,6 +192,8 @@ void l2cap_accept(int ctl, int csk, int isk, int debug, int legacy)
     socklen_t addrlen;
     bdaddr_t addr_src, addr_dst;
     int ctrl_socket, intr_socket, err;
+    int vendor = UNKNOWN;
+    char name[248] = { 0 };
 
     memset(&addr, 0, sizeof(addr));
     memset(&req, 0, sizeof(req));
@@ -203,16 +224,25 @@ void l2cap_accept(int ctl, int csk, int isk, int debug, int legacy)
         return;
     }
 
-#ifdef GASIA_GAMEPAD_HACKS
-    req.vendor  = 0x054c;
-    req.product = 0x0268;
-    req.version = 0x0100;
-    req.parser  = 0x0100;
+    // query controller name
+    get_remote_name(&addr_dst, name, sizeof(name));
 
-    strcpy(req.name, "Gasia Gamepad experimental driver");
-#else
-    get_sdp_device_info(&addr_src, &addr_dst, &req);
-#endif
+    if (strcmp(name, "PLAYSTATION(R)3 Controller") == 0)
+        vendor = OFFICIAL;
+    else if (strcmp(name, "PS(R) Gamepad") == 0)
+        vendor = GASIA;
+    else if (strcmp(name, "PLAYSTATION(R)3Conteroller-PANHAI") == 0)
+        vendor = SHANWAN;
+
+    if (vendor != OFFICIAL) {
+        req.vendor  = 0x054c;
+        req.product = 0x0268;
+        req.version = 0x0100;
+        req.parser  = 0x0100;
+        strcpy(req.name, name);
+    } else {
+        get_sdp_device_info(&addr_src, &addr_dst, &req);
+    }
 
     if (!legacy && req.vendor == 0x054c && req.product == 0x0268) {
         if (debug) syslog(LOG_INFO, "Will initiate Sixaxis now");
@@ -235,8 +265,10 @@ void l2cap_accept(int ctl, int csk, int isk, int debug, int legacy)
 
             const char* uinput_sixaxis_cmd = "/usr/sbin/sixad-sixaxis";
             const char* debug_mode = debug ? "1" : "0";
+            char vendor_mode[sizeof(vendor)];
+            sprintf(vendor_mode, "%d", vendor);
 
-            const char* argv[] = { uinput_sixaxis_cmd, bda, debug_mode, NULL };
+            const char* argv[] = { uinput_sixaxis_cmd, bda, debug_mode, vendor_mode, NULL };
             char* envp[] = { NULL };
 
             if (execve(argv[0], (char* const*)argv, envp) < 0) {
@@ -352,7 +384,9 @@ int create_device(int ctl, int csk, int isk)
      socklen_t addrlen;
      bdaddr_t src, dst;
      char bda[18];
-     int err;
+     //int err;
+     int vendor = UNKNOWN;
+     char name[248] = { 0 };
 
      memset(&addr, 0, sizeof(addr));
      addrlen = sizeof(addr);
@@ -376,31 +410,33 @@ int create_device(int ctl, int csk, int isk)
      req.flags     = 0;
      req.idle_to   = 1800;
 
+     // query controller name
+     get_remote_name(&dst, name, sizeof(name));
 
-#ifdef GASIA_GAMEPAD_HACKS
-    req.vendor  = 0x054c;
-    req.product = 0x0268;
-    req.version = 0x0100;
-    req.parser  = 0x0100;
+     if (strcmp(name, "PLAYSTATION(R)3 Controller") == 0)
+         vendor = OFFICIAL;
+     else if (strcmp(name, "PS(R) Gamepad") == 0)
+         vendor = GASIA;
+     else if (strcmp(name, "PLAYSTATION(R)3Conteroller-PANHAI") == 0)
+         vendor = SHANWAN;
 
-    strcpy(req.name, "Gasia Gamepad experimental driver");
-
-    err = 0;
-#else
-    err = get_sdp_device_info(&src, &dst, &req);
-#endif
-
-     if (err < 0)
-         return err;
-     else {
-         ba2str(&dst, bda);
-         syslog(LOG_INFO, "Connected %s (%s)", req.name, bda);
-         if (req.vendor == 0x054c && req.product == 0x0268)
-             enable_sixaxis(csk);
-         err = ioctl(ctl, HIDPCONNADD, &req);
+     if (vendor != OFFICIAL) {
+         req.vendor  = 0x054c;
+         req.product = 0x0268;
+         req.version = 0x0100;
+         req.parser  = 0x0100;
+         strcpy(req.name, name);
+     } else {
+         get_sdp_device_info(&src, &dst, &req);
      }
 
-  return 0;
+     ba2str(&dst, bda);
+     syslog(LOG_INFO, "Connected %s (%s)", req.name, bda);
+     if (req.vendor == 0x054c && req.product == 0x0268)
+         enable_sixaxis(csk, vendor);
+     //err = ioctl(ctl, HIDPCONNADD, &req);
+
+     return 0;
 }
 
 int get_sdp_device_info(const bdaddr_t *src, const bdaddr_t *dst, struct hidp_connadd_req *req)

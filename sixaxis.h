@@ -50,8 +50,8 @@ struct rumble_effect {
 
 void do_joystick(int fd, unsigned char* buf, struct dev_joystick joystick);
 void do_input(int fd, unsigned char* buf, struct dev_input input);
-void do_rumble(int csk, int led_n, int weak, int strong, int timeout);
+void do_rumble(int csk, int vendor, int led_n, int weak, int strong, int timeout);
 
-int set_sixaxis_led(int csk, struct dev_led led, int rumble);
+int set_sixaxis_led(int csk, int vendor, struct dev_led led, int rumble);
 
 #endif // SIXAXIS_H

@@ -4,10 +4,6 @@ CXX ?= g++
 CXXFLAGS += -O2 -Wall 
 LDFLAGS += -Wl,-Bsymbolic-functions
 
-ifeq ($(GASIA_GAMEPAD_HACKS),1)
-CXXFLAGS += -DGASIA_GAMEPAD_HACKS
-endif
-
 ifeq ($(DEVICE_SHORT_NAME),1)
 CXXFLAGS += -DSHORT_NAME
 endif
