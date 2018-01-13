@@ -20,6 +20,12 @@
 
 #include <unistd.h>
 
+// vendor types
+#define UNKNOWN  0
+#define OFFICIAL 1
+#define GASIA    2
+#define SHANWAN  3
+
 struct dev_led {
     bool enabled;
     bool anim;
@@ -86,6 +92,6 @@ void open_log(const char *app_name);
 struct device_settings init_values(const char *mac);
 
 int get_joystick_number();
-void enable_sixaxis(int csk);
+void enable_sixaxis(int csk, int vendor);
 
 #endif // SHARED_H

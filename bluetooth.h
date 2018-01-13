@@ -27,6 +27,8 @@
 void do_search(int ctl, bdaddr_t *bdaddr, int debug);
 void do_connect(int ctl, bdaddr_t *src, bdaddr_t *dst, int debug);
 
+void get_remote_name(bdaddr_t *bdaddr, char *name, int size);
+
 int l2cap_listen(const bdaddr_t *bdaddr, unsigned short psm, int lm, int backlog);
 void l2cap_accept(int ctl, int csk, int isk, int debug, int legacy);
 int l2cap_connect(bdaddr_t *src, bdaddr_t *dst, unsigned short psm);

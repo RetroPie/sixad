@@ -31,6 +31,7 @@
 int csk = 0;
 int isk = 1;
 int debug;
+int vendor;
 
 int led_n;
 bool old_rumble_mode;
@@ -126,14 +127,14 @@ static void uinput_listen()
                         if (event.value) {
                             for (i=0; i<MAX_RUMBLE_EFFECTS; i++) {
                                 if (effects[i].id == event.code) {
-                                    do_rumble(csk, led_n, effects[i].weak, effects[i].strong, effects[i].timeout);
+                                    do_rumble(csk, vendor, led_n, effects[i].weak, effects[i].strong, effects[i].timeout);
                                     if (debug) syslog(LOG_INFO, "RUMBLE now :: %i|%i|%i", effects[i].weak, effects[i].strong, effects[i].timeout);
                                     break;
                                 }
                             }
                         } else {
                            if (!old_rumble_mode) {
-                                do_rumble(csk, led_n, 0, 0, 0);
+                                do_rumble(csk, vendor, led_n, 0, 0, 0);
                                 if (debug) syslog(LOG_INFO, "RUMBLE clean");
                            }
                         }
@@ -150,7 +151,7 @@ static void rumble_listen()
 {
     while (!io_canceled()) {
         if (active) {
-            do_rumble(csk, led_n, weak, strong, timeout);
+            do_rumble(csk, vendor, led_n, weak, strong, timeout);
             active = false;
         } else
             usleep(5000);
@@ -268,6 +269,7 @@ int main(int argc, char *argv[])
 
     const char *mac = argv[1];
     debug = atoi(argv[2]);
+    vendor = atoi(argv[3]);
 
     open_log("sixad-sixaxis");
     syslog(LOG_INFO, "started");
@@ -283,8 +285,8 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    enable_sixaxis(csk);
-    led_n = set_sixaxis_led(csk, settings.led, settings.rumble.enabled);
+    enable_sixaxis(csk, vendor);
+    led_n = set_sixaxis_led(csk, vendor, settings.led, settings.rumble.enabled);
 
     if (settings.rumble.enabled) {
       old_rumble_mode = settings.rumble.old_mode;
@@ -381,9 +383,9 @@ int main(int argc, char *argv[])
         uinput_close(ufd->mk, debug);
     }
 
-    do_rumble(csk, 10, 0xff, 0xff, 0x01);
+    do_rumble(csk, vendor, 10, 0xff, 0xff, 0x01);
     usleep(10*1000);
-    
+
     delete ufd;
 
     shutdown(isk, SHUT_RDWR); // Shutdown Interupt socket.
