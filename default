@@ -7,7 +7,7 @@ enable_timeout 1
 timeout_mins 10
 led_n_auto 1
 led_n_number 0
-led_anim 1
+led_anim 0
 enable_buttons 1
 enable_sbuttons 0
 enable_axis 1

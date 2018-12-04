@@ -381,7 +381,6 @@ int main(int argc, char *argv[])
         uinput_close(ufd->mk, debug);
     }
 
-    do_rumble(csk, 10, 0xff, 0xff, 0x01);
     usleep(10*1000);
     
     delete ufd;
